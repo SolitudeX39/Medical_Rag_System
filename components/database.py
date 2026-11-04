@@ -412,13 +412,26 @@ def context_from_rows(rows: list[tuple]) -> str:
     return "\n\n".join(blocks)
 
 
-def query_database(query: str, history: list | None = None) -> dict:
-    sql_result = _search_all_documents(query, limit=12)
-
-    graph_facts = related_terms(query)
+def query_database(
+    query: str,
+    history: list | None = None,
+    system_prompt: str | None = None,
+    extra_context: str = "",
+) -> dict:
+    sql_result = []
+    graph_facts = []
+    try:
+        sql_result = _search_all_documents(query, limit=12)
+    except Exception:
+        if not extra_context:
+            raise
+    try:
+        graph_facts = related_terms(query)
+    except Exception:
+        graph_facts = []
     graph_text = format_graph_context(graph_facts)
 
-    if not sql_result and not graph_facts:
+    if not sql_result and not graph_facts and not extra_context:
         return {
             "answer": "ไม่พบเนื้อหาที่เกี่ยวข้องในเอกสารหรือกราฟศัพท์",
             "sources": [],
@@ -426,6 +439,7 @@ def query_database(query: str, history: list | None = None) -> dict:
         }
 
     context_text = context_from_rows(sql_result)
+    extra_block = f"\nข้อมูลคนไข้ในระบบ:\n{extra_context}\n" if extra_context else ""
 
     llm = ChatOpenAI(
         model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
@@ -433,15 +447,15 @@ def query_database(query: str, history: list | None = None) -> dict:
     )
 
     user_content = f"""Context จากเอกสารทั้งหมดที่เคยอัปโหลด แยกตามไฟล์ PDF และ CSV:
-{context_text}
+{context_text or "ไม่มีเอกสารที่เกี่ยวข้อง"}
 
 กราฟศัพท์จาก Neo4j:
 {graph_text or "ไม่พบโหนดที่เกี่ยวข้อง"}
-
+{extra_block}
 คำถามของผู้ใช้:
 {query}"""
 
-    messages = [SystemMessage(content=CHAT_SYSTEM_PROMPT)]
+    messages = [SystemMessage(content=system_prompt or CHAT_SYSTEM_PROMPT)]
     if history:
         for item in history[-8:]:
             role = item.get("role")

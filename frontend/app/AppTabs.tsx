@@ -2,21 +2,27 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CHAT_EVENT,
+  chatNamespace,
   deleteThread,
   emitChat,
   getCurrentThreadId,
   loadThreads,
   type ChatThread,
 } from "./chatStore";
-import { getAuthUser, logout } from "./authStore";
+import { AUTH_EVENT, getSession, logout, type AuthSession } from "./authStore";
 
-const TABS = [
-  { href: "/", label: "Chat", hint: "ถามเอกสาร" },
-  { href: "/upload", label: "อัปโหลด", hint: "ใส่ PDF หรือ CSV" },
-  { href: "/datasets", label: "Dataset", hint: "สรุปคลังข้อมูล" },
+const STAFF_TABS = [
+  { href: "/", label: "คัดกรอง", hint: "แยกไปแผนก" },
+  { href: "/upload", label: "อัปโหลด", hint: "คลังความรู้" },
+  { href: "/datasets", label: "Dataset", hint: "สรุปเอกสาร" },
+];
+
+const PATIENT_TABS = [
+  { href: "/patient", label: "ประวัติของฉัน", hint: "ผลตรวจและคำแนะนำ" },
+  { href: "/patient/chat", label: "ปรึกษาโรค", hint: "chatbot ส่วนตัว" },
 ];
 
 export default function AppTabs() {
@@ -25,11 +31,31 @@ export default function AppTabs() {
   const [open, setOpen] = useState(false);
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [currentId, setCurrentId] = useState("");
+  const [session, setSession] = useState<AuthSession | null>(() => {
+    if (typeof window === "undefined") return null;
+    return getSession();
+  });
+  const role = session?.role || "staff";
+  const namespace = useMemo(
+    () => chatNamespace(role, session?.username || ""),
+    [role, session?.username],
+  );
+  const tabs = role === "patient" ? PATIENT_TABS : STAFF_TABS;
+  const chatHome = role === "patient" ? "/patient/chat" : "/";
 
   function refreshHistory() {
-    setThreads(loadThreads());
-    setCurrentId(getCurrentThreadId());
+    setThreads(loadThreads(namespace));
+    setCurrentId(getCurrentThreadId(namespace));
   }
+
+  useEffect(() => {
+    function syncSession() {
+      setSession(getSession());
+    }
+    syncSession();
+    window.addEventListener(AUTH_EVENT, syncSession);
+    return () => window.removeEventListener(AUTH_EVENT, syncSession);
+  }, []);
 
   useEffect(() => {
     refreshHistory();
@@ -38,7 +64,7 @@ export default function AppTabs() {
     }
     window.addEventListener(CHAT_EVENT, onChat);
     return () => window.removeEventListener(CHAT_EVENT, onChat);
-  }, []);
+  }, [namespace]);
 
   return (
     <>
@@ -73,11 +99,13 @@ export default function AppTabs() {
         {open && (
           <div className="flex min-h-0 flex-1 flex-col">
             <div className="px-3 pb-4 pt-5">
-              <p className="text-[10px] tracking-[0.28em] text-cyan-300">MEDICAL RAG AI</p>
-              <p className="mt-1 text-xs text-slate-500">ถามเอกสารการแพทย์</p>
-              <p className="mt-2 text-xs text-slate-400">{getAuthUser() || "admin"}</p>
+              <p className="text-[10px] tracking-[0.28em] text-cyan-300">MEDICAL CLINIC</p>
+              <p className="mt-1 text-xs text-slate-500">
+                {role === "patient" ? "พอร์ทัลคนไข้" : "ระบบคัดกรอง"}
+              </p>
+              <p className="mt-2 text-xs text-slate-400">{session?.name || session?.username}</p>
             </div>
-            {TABS.map((tab) => {
+            {tabs.map((tab) => {
               const active = tab.href === "/" ? pathname === "/" : pathname.startsWith(tab.href);
               return (
                 <Link
@@ -88,6 +116,7 @@ export default function AppTabs() {
                       ? "bg-cyan-300/15 font-semibold text-white shadow-[0_0_24px_rgba(34,211,238,0.12)]"
                       : "text-slate-400 hover:bg-white/5 hover:text-slate-100"
                   }`}
+                  onClick={() => setOpen(false)}
                 >
                   <span className="block text-sm">{tab.label}</span>
                   <span className="mt-1 block text-[11px] font-normal text-slate-500">{tab.hint}</span>
@@ -100,12 +129,12 @@ export default function AppTabs() {
                 type="button"
                 className="w-full rounded-2xl border border-cyan-300/25 bg-cyan-300/10 px-3 py-2 text-left text-sm text-cyan-100 hover:bg-cyan-300/20"
                 onClick={() => {
-                  router.push("/");
+                  router.push(chatHome);
                   emitChat({ type: "new" });
                   setOpen(false);
                 }}
               >
-                + New chat
+                + แชทใหม่
               </button>
               <p className="mt-3 px-1 text-[10px] tracking-[0.18em] text-slate-500">ประวัติการแชท</p>
             </div>
@@ -120,7 +149,7 @@ export default function AppTabs() {
                       <button
                         type="button"
                         onClick={() => {
-                          router.push("/");
+                          router.push(chatHome);
                           emitChat({ type: "open", id: thread.id });
                           setOpen(false);
                         }}
@@ -135,7 +164,7 @@ export default function AppTabs() {
                         className="rounded-lg px-2 text-xs text-slate-500 hover:bg-white/5 hover:text-rose-300"
                         aria-label="ลบแชท"
                         onClick={() => {
-                          deleteThread(thread.id);
+                          deleteThread(thread.id, namespace);
                           if (currentId === thread.id) emitChat({ type: "new" });
                           refreshHistory();
                         }}

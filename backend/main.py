@@ -16,6 +16,15 @@ from components.env import load_project_env
 load_project_env()
 
 from components.chat_prompt import GRAPH_BUILD_PROMPTS, SUGGESTED_PROMPTS
+from components.clinic import (
+    DEPARTMENTS,
+    PATIENT_PROMPTS,
+    TRIAGE_PROMPTS,
+    authenticate,
+    get_patient,
+    patient_chat,
+    triage_chat,
+)
 from components.graph_build import build_graph_from_prompt
 from components.database import (
     delete_document,
@@ -29,7 +38,7 @@ from components.graph import graph_overview, related_terms, replace_graph
 from components.medical_graph import MEDICAL_GRAPH_NODES, MEDICAL_GRAPH_RELATIONSHIPS
 from components.mock_pdf_data import MOCK_PDF_NAME
 
-app = FastAPI(title="Medical RAG AI")
+app = FastAPI(title="Medical Clinic AI")
 
 app.add_middleware(
     CORSMiddleware,
@@ -51,6 +60,12 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1)
     history: list[ChatMessage] = []
+    username: str = ""
+
+
+class LoginRequest(BaseModel):
+    username: str = Field(min_length=1)
+    password: str = Field(min_length=1)
 
 
 @app.get("/health")
@@ -69,7 +84,62 @@ def documents():
 
 @app.get("/prompts")
 def prompts():
-    return {"prompts": SUGGESTED_PROMPTS, "graph_prompts": GRAPH_BUILD_PROMPTS}
+    return {
+        "prompts": SUGGESTED_PROMPTS,
+        "graph_prompts": GRAPH_BUILD_PROMPTS,
+        "triage_prompts": TRIAGE_PROMPTS,
+        "patient_prompts": PATIENT_PROMPTS,
+    }
+
+
+@app.post("/auth/login")
+def auth_login(body: LoginRequest):
+    session = authenticate(body.username, body.password)
+    if not session:
+        raise HTTPException(status_code=401, detail="ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
+    return session
+
+
+@app.get("/clinic/departments")
+def clinic_departments():
+    return {"departments": DEPARTMENTS}
+
+
+@app.get("/patients/{username}")
+def patient_profile(username: str):
+    patient = get_patient(username)
+    if not patient:
+        raise HTTPException(status_code=404, detail="ไม่พบคนไข้")
+    return patient
+
+
+@app.post("/triage")
+def triage(body: ChatRequest):
+    message = body.message.strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="message required")
+    try:
+        result = triage_chat(message, history=[item.model_dump() for item in body.history])
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return result
+
+
+@app.post("/patient/chat")
+def patient_advice(body: ChatRequest):
+    message = body.message.strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="message required")
+    try:
+        return patient_chat(
+            body.username,
+            message,
+            history=[item.model_dump() for item in body.history],
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.get("/documents/{document_id}")

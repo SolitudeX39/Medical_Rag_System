@@ -2,10 +2,12 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { isLoggedIn, login } from "../authStore";
+import { getSession, homePath, loginLocal, saveSession, type AuthRole } from "../authStore";
+import { loginRemote } from "../clinic";
 
 export default function LoginPage() {
   const router = useRouter();
+  const [portal, setPortal] = useState<AuthRole>("staff");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -13,20 +15,31 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
-    if (isLoggedIn()) router.replace("/");
+    const session = getSession();
+    if (session) router.replace(homePath(session.role));
   }, [router]);
 
-  function onSubmit(event: FormEvent) {
+  async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setError("");
     setBusy(true);
-    const ok = login(username, password);
-    setBusy(false);
-    if (!ok) {
-      setError("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง");
-      return;
+    try {
+      let session = null;
+      try {
+        const remote = await loginRemote(username, password);
+        session = { username: remote.username, role: remote.role, name: remote.name };
+        saveSession(session);
+      } catch {
+        session = loginLocal(username, password);
+      }
+      if (!session) {
+        setError("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง");
+        return;
+      }
+      router.replace(homePath(session.role));
+    } finally {
+      setBusy(false);
     }
-    router.replace("/");
   }
 
   return (
@@ -38,19 +51,47 @@ export default function LoginPage() {
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#020617]/35 via-[#020617]/55 to-[#020617]/92" />
       <div className="relative w-full max-w-lg">
         <h1 className="text-center text-4xl font-bold tracking-[0.12em] text-cyan-300 drop-shadow-[0_0_28px_rgba(34,211,238,0.45)] sm:text-5xl">
-          MEDICAL RAG AI
+          MEDICAL CLINIC
         </h1>
         <p className="mt-4 text-center text-xl font-semibold text-white">เข้าสู่ระบบ</p>
+        <p className="mt-2 text-center text-sm text-slate-300">
+          เลือกฝั่งงานคัดกรอง หรือพอร์ทัลคนไข้
+        </p>
 
-        <form onSubmit={onSubmit} className="glass-panel mt-8 rounded-3xl p-6 md:p-8">
-          <label className="block text-xs tracking-[0.16em] text-slate-500">
+        <form onSubmit={(event) => void onSubmit(event)} className="glass-panel mt-8 rounded-3xl p-6 md:p-8">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              className={`rounded-2xl px-3 py-3 text-sm ${
+                portal === "staff"
+                  ? "bg-cyan-400 font-semibold text-slate-950"
+                  : "border border-white/10 text-slate-300 hover:bg-white/5"
+              }`}
+              onClick={() => setPortal("staff")}
+            >
+              เจ้าหน้าที่คัดกรอง
+            </button>
+            <button
+              type="button"
+              className={`rounded-2xl px-3 py-3 text-sm ${
+                portal === "patient"
+                  ? "bg-cyan-400 font-semibold text-slate-950"
+                  : "border border-white/10 text-slate-300 hover:bg-white/5"
+              }`}
+              onClick={() => setPortal("patient")}
+            >
+              คนไข้
+            </button>
+          </div>
+
+          <label className="mt-6 block text-xs tracking-[0.16em] text-slate-500">
             USERNAME
             <input
               value={username}
               onChange={(event) => setUsername(event.target.value)}
               autoComplete="username"
               className="mt-2 w-full rounded-2xl border border-white/10 bg-[#070b14] px-4 py-3 text-sm text-white outline-none focus:border-cyan-300/50"
-              placeholder="admin"
+              placeholder={portal === "staff" ? "staff" : "somchai"}
             />
           </label>
           <label className="mt-4 block text-xs tracking-[0.16em] text-slate-500">
@@ -74,6 +115,12 @@ export default function LoginPage() {
               </button>
             </span>
           </label>
+
+          <p className="mt-4 text-xs leading-relaxed text-slate-400">
+            {portal === "staff"
+              ? "เดโมเจ้าหน้าที่: staff / test1234"
+              : "เดโมคนไข้: somchai, malee, nicha / test1234"}
+          </p>
 
           {error && <p className="mt-4 text-sm text-rose-300">{error}</p>}
 

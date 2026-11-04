@@ -10,8 +10,8 @@ const plexThai = IBM_Plex_Sans_Thai({
 });
 
 export const metadata: Metadata = {
-  title: "Medical RAG AI",
-  description: "Medical RAG AI — ถามเอกสารทางการแพทย์และสร้างกราฟความรู้",
+  title: "Medical Clinic AI",
+  description: "คัดกรองผู้ป่วยเข้าแผนก และพอร์ทัลคนไข้สำหรับประวัติ ผลตรวจ และคำแนะนำ",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

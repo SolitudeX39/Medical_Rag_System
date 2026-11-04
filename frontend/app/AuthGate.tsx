@@ -3,7 +3,19 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import AppTabs from "./AppTabs";
-import { AUTH_EVENT, isLoggedIn } from "./authStore";
+import { AUTH_EVENT, getSession, homePath, isLoggedIn } from "./authStore";
+
+function isPatientRoute(pathname: string) {
+  return pathname === "/patient" || pathname.startsWith("/patient/");
+}
+
+function isStaffRoute(pathname: string) {
+  return (
+    pathname === "/" ||
+    pathname.startsWith("/upload") ||
+    pathname.startsWith("/datasets")
+  );
+}
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -28,14 +40,27 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!ready) return;
-    if (!authed && !isLogin) router.replace("/login");
-    if (authed && isLogin) router.replace("/");
-  }, [ready, authed, isLogin, router]);
+    const session = getSession();
+    if (!authed && !isLogin) {
+      router.replace("/login");
+      return;
+    }
+    if (authed && isLogin) {
+      router.replace(homePath(session?.role));
+      return;
+    }
+    if (session?.role === "patient" && isStaffRoute(pathname)) {
+      router.replace("/patient");
+    }
+    if (session?.role === "staff" && isPatientRoute(pathname)) {
+      router.replace("/");
+    }
+  }, [ready, authed, isLogin, pathname, router]);
 
   if (!ready || (!authed && !isLogin)) {
     return (
       <div className="flex h-dvh items-center justify-center text-sm text-slate-400">
-        กำลังเปิด Medical RAG AI...
+        กำลังเปิดระบบคลินิก...
       </div>
     );
   }
