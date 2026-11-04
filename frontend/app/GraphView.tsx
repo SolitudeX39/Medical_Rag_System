@@ -145,6 +145,7 @@ export function factsToGraph(
     related_name?: string;
     related_thai?: string;
     related_definition?: string;
+    relation_detail?: string;
   }>,
 ): GraphOverview {
   const nodes = new Map<string, GraphNode>();
@@ -170,6 +171,7 @@ export function factsToGraph(
       from: outgoing ? fact.name : fact.related_name,
       to: outgoing ? fact.related_name : fact.name,
       label: match?.[1] || "เกี่ยวข้อง",
+      detail: fact.relation_detail || "",
     });
   }
   return { nodes: [...nodes.values()], links };

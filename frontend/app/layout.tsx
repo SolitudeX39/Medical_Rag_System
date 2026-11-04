@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Sans_Thai } from "next/font/google";
-import AppTabs from "./AppTabs";
+import AuthGate from "./AuthGate";
 import "./globals.css";
 
 const plexThai = IBM_Plex_Sans_Thai({
@@ -18,10 +18,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="th" className={`${plexThai.variable} h-full antialiased`} suppressHydrationWarning>
       <body className={`${plexThai.className} min-h-full`}>
-        <div className="flex h-dvh overflow-hidden">
-          <AppTabs />
-          <div className="min-w-0 flex-1">{children}</div>
-        </div>
+        <AuthGate>{children}</AuthGate>
       </body>
     </html>
   );

@@ -146,7 +146,10 @@ def graph_build(body: ChatRequest):
     if not message:
         raise HTTPException(status_code=400, detail="message required")
     try:
-        return build_graph_from_prompt(message)
+        return build_graph_from_prompt(
+            message,
+            history=[item.model_dump() for item in body.history],
+        )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 

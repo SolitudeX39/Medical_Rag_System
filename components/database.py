@@ -401,7 +401,7 @@ def search_parent_chunks(query: str, limit: int = 12) -> list[tuple]:
         return []
 
 
-def _context_from_rows(rows: list[tuple]) -> str:
+def context_from_rows(rows: list[tuple]) -> str:
     grouped: dict[str, list[str]] = {}
     for row in rows:
         label = _source_label(row[3], row[2])
@@ -425,7 +425,7 @@ def query_database(query: str, history: list | None = None) -> dict:
             "graph": [],
         }
 
-    context_text = _context_from_rows(sql_result)
+    context_text = context_from_rows(sql_result)
 
     llm = ChatOpenAI(
         model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),

@@ -24,6 +24,7 @@ type GraphFact = {
   related_name?: string;
   related_thai?: string;
   related_definition?: string;
+  relation_detail?: string;
 };
 
 type ChatMessage = {
@@ -54,10 +55,134 @@ const FALLBACK_GRAPH_PROMPTS = [
   "เชื่อม Hypertension กับ Stroke และ Myocardial infarction",
 ];
 
+function relationLabel(relation?: string) {
+  return relation?.match(/-\[(.+)\]->/)?.[1] || "เกี่ยวข้อง";
+}
+
+function MessageSources({
+  sources,
+  defaultOpen = false,
+  onOpen,
+}: {
+  sources: Source[];
+  defaultOpen?: boolean;
+  onOpen: (documentId: string, page?: number | null) => void;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="mt-3 border-t border-white/10 pt-2">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between text-left text-sm text-cyan-200 hover:text-white"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+      >
+        <span>เอกสาร · {sources.length} แหล่ง</span>
+        <span className="text-xs text-slate-400">{open ? "ซ่อน" : "แสดง"}</span>
+      </button>
+      {open && (
+        <div className="mt-2 space-y-2">
+          {sources.map((source, sourceIndex) => (
+            <div key={sourceIndex} className="text-sm">
+              <button
+                type="button"
+                className="cursor-pointer text-left text-cyan-300 underline-offset-2 hover:underline"
+                onClick={() => {
+                  if (source.document_id) {
+                    onOpen(source.document_id, source.page);
+                  }
+                }}
+              >
+                ดูเอกสาร
+                {source.filename ? ` · ${source.filename}` : ""}
+                {typeof source.page === "number"
+                  ? ` · ${sourceLocationLabel(source.filename, source.page)}`
+                  : ""}
+              </button>
+              <p className="mt-2 max-h-28 overflow-y-auto whitespace-pre-wrap text-slate-400">
+                {source.text}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MessageGraph({ facts }: { facts: GraphFact[] }) {
   const graph = useMemo(() => factsToGraph(facts), [facts]);
   const highlight = useMemo(() => facts.map((fact) => fact.name), [facts]);
-  return <GraphView compact graph={graph} highlight={highlight} />;
+  const relations = useMemo(() => {
+    const seen = new Set<string>();
+    const items: Array<{
+      from: string;
+      to: string;
+      fromThai?: string;
+      toThai?: string;
+      label: string;
+      detail?: string;
+      fromDefinition?: string;
+      toDefinition?: string;
+    }> = [];
+    for (const fact of facts) {
+      if (!fact.related_name) continue;
+      const outgoing = !fact.relation || fact.relation.startsWith(fact.name);
+      const from = outgoing ? fact.name : fact.related_name;
+      const to = outgoing ? fact.related_name : fact.name;
+      const key = `${from}->${to}:${relationLabel(fact.relation)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      items.push({
+        from,
+        to,
+        fromThai: outgoing ? fact.thai : fact.related_thai,
+        toThai: outgoing ? fact.related_thai : fact.thai,
+        label: relationLabel(fact.relation),
+        detail: fact.relation_detail,
+        fromDefinition: outgoing ? fact.definition : fact.related_definition,
+        toDefinition: outgoing ? fact.related_definition : fact.definition,
+      });
+    }
+    return items;
+  }, [facts]);
+
+  return (
+    <div>
+      <GraphView compact graph={graph} highlight={highlight} />
+      {relations.length > 0 && (
+        <div className="mt-3 space-y-3">
+          <p className="text-[10px] tracking-[0.18em] text-cyan-300">ความสัมพันธ์</p>
+          {relations.map((rel) => (
+            <div key={`${rel.from}-${rel.label}-${rel.to}`} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
+              <p className="text-sm font-medium text-white">
+                {rel.from}
+                {rel.fromThai ? ` (${rel.fromThai})` : ""}
+                <span className="mx-2 text-cyan-300">{rel.label}</span>
+                {rel.to}
+                {rel.toThai ? ` (${rel.toThai})` : ""}
+              </p>
+              {rel.fromDefinition && (
+                <p className="mt-2 text-sm leading-relaxed text-slate-300">
+                  <span className="text-slate-500">{rel.from}: </span>
+                  {rel.fromDefinition}
+                </p>
+              )}
+              {rel.toDefinition && (
+                <p className="mt-1 text-sm leading-relaxed text-slate-300">
+                  <span className="text-slate-500">{rel.to}: </span>
+                  {rel.toDefinition}
+                </p>
+              )}
+              {rel.detail && (
+                <p className="mt-2 text-sm leading-relaxed text-slate-200">{rel.detail}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function Home() {
@@ -348,30 +473,11 @@ export default function Home() {
               >
                 <p className="whitespace-pre-wrap">{message.content.replaceAll("**", "")}</p>
                 {message.sources && message.sources.length > 0 && (
-                  <div className="mt-3 space-y-2 border-t border-white/10 pt-2">
-                    {message.sources.map((source, sourceIndex) => (
-                      <div key={sourceIndex} className="text-sm">
-                        <button
-                          type="button"
-                          className="cursor-pointer text-left text-cyan-300 underline-offset-2 hover:underline"
-                          onClick={() => {
-                            if (source.document_id) {
-                              void openDocument(source.document_id, source.page);
-                            }
-                          }}
-                        >
-                          ดูเอกสาร
-                          {source.filename ? ` · ${source.filename}` : ""}
-                          {typeof source.page === "number"
-                            ? ` · ${sourceLocationLabel(source.filename, source.page)}`
-                            : ""}
-                        </button>
-                        <p className="mt-2 max-h-28 overflow-y-auto whitespace-pre-wrap text-slate-400">
-                          {source.text}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
+                  <MessageSources
+                    sources={message.sources}
+                    defaultOpen={!(message.graph && message.graph.length > 0)}
+                    onOpen={(documentId, page) => void openDocument(documentId, page)}
+                  />
                 )}
                 {message.graph && message.graph.length > 0 && (
                   <div className="mt-3 border-t border-white/10 pt-2">
@@ -383,7 +489,7 @@ export default function Home() {
             ))}
             {busy && (
               <p className="text-sm text-slate-400">
-                {mode === "graph" ? "กำลังสกัดศัพท์แล้วบันทึกลง Neo4j..." : "กำลังค้นเอกสารและร่างคำตอบ..."}
+                {mode === "graph" ? "กำลังอ่านเอกสาร แล้วสร้างกราฟความสัมพันธ์..." : "กำลังค้นเอกสารและร่างคำตอบ..."}
               </p>
             )}
             <div ref={bottomRef} />
