@@ -36,12 +36,19 @@ def load_symptom_model():
 
 def load_treatment_model():
     """
-    Loads en_ner_bc5cdr_md specifically for extracting CHEMICALS / DRUGS from treatment text.
+    Loads en_ner_bc5cdr_md specifically for extracting CHEMICALS / DRUGS from treatment text,
+    with UMLS entity linking to resolve medications to CUIs.
     Ignores non-drug words like 'day', 'patient', 'times', 'risk', etc.
     """
     try:
         print("Loading Treatment Drug Specialist model (en_ner_bc5cdr_md)...")
         nlp = spacy.load("en_ner_bc5cdr_md")
+        try:
+            from scispacy.linking import EntityLinker
+            print("Adding UMLS Entity Linker to Treatments...")
+            nlp.add_pipe("scispacy_linker", config={"resolve_abbreviations": True, "linker_name": "umls"})
+        except Exception as e:
+            print(f"Note: UMLS linker not attached to treatments: {e}")
     except OSError:
         print("WARNING: en_ner_bc5cdr_md not found. Falling back to basic model...")
         nlp = spacy.load("en_core_web_sm")
@@ -74,22 +81,29 @@ def extract_symptom_entities(nlp, text):
 
 def extract_treatment_chemicals(nlp, text):
     """
-    Uses en_ner_bc5cdr_md to isolate ONLY pharmaceutical chemicals/drugs.
-    Returns: { "sanitized_drug_key": "Drug Display Name" }
+    Uses en_ner_bc5cdr_md to isolate ONLY pharmaceutical chemicals/drugs,
+    and maps them to UMLS CUIs when confident.
+    Returns: { "unique_id": "Drug Display Name" }
     """
     if pd.isna(text) or not str(text).strip():
         return {}
         
     doc = nlp(str(text))
     drugs = {}
+    has_linker = "scispacy_linker" in nlp.pipe_names
     
     for ent in doc.ents:
         # STRICT FILTER: Only keep actual CHEMICALS / DRUGS
-        # This completely filters out 'day', 'patient', 'burns', 'clothing', etc.
         if ent.label_ == "CHEMICAL":
             clean_name = ent.text.strip().lower()
             if len(clean_name) >= 3:
-                unique_key = clean_name.replace(" ", "_").replace(",", "").replace("-", "_")
+                cui_id = None
+                if has_linker and ent._.kb_ents:
+                    best_match_cui, score = ent._.kb_ents[0]
+                    if score > 0.75:
+                        cui_id = best_match_cui
+                        
+                unique_key = cui_id if cui_id else clean_name.replace(" ", "_").replace(",", "").replace("-", "_")
                 drugs[unique_key] = ent.text.strip().title()
                 
     return drugs
@@ -170,9 +184,12 @@ def process_csv_to_rdf(csv_path="disease_data_test.csv", output_path="disease_gr
             g.add((symp_node, RDFS.label, Literal(symp_name.title())))
             g.add((disease_node, MED.has_symptom, symp_node))
             
-        # Add Treatments (Clean chemical/medication nodes)
+        # Add Treatments (with UMLS CUI if available, otherwise fallback)
         for unique_id, treat_name in row['extracted_treatments'].items():
-            treat_node = TREATMENT[unique_id]
+            if unique_id.startswith("C") and unique_id[1:].isdigit():
+                treat_node = UMLS[unique_id]
+            else:
+                treat_node = TREATMENT[unique_id]
             g.add((treat_node, RDF.type, MED.Treatment))
             g.add((treat_node, RDFS.label, Literal(treat_name)))
             g.add((disease_node, MED.has_treatment, treat_node))

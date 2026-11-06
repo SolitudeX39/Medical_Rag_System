@@ -11,3 +11,4 @@ components/__pycache__/openrouter_rerank.cpython-312.pyc
 components/__pycache__/gemini_embedding.cpython-312.pyc
 components/__pycache__/database.cpython-312.pyc
 rag1.ipynb
+__pycache__/ner_rdflib_pipeline.cpython-312.pyc
