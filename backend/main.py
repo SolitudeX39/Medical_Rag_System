@@ -195,7 +195,7 @@ async def upload(file: UploadFile = File(...)):
         # If medical disease/symptom/treatment CSV, execute the Biomedical NER + UMLS RDF Pipeline!
         if is_medical_csv:
             try:
-                from ner_rdflib_pipeline import process_csv_to_rdf
+                from .ner_rdflib_pipeline import process_csv_to_rdf
                 from upload_ttl_to_aura import (
                     AURA_PASSWORD,
                     AURA_URI,
