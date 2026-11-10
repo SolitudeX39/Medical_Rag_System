@@ -46,3 +46,11 @@ class OpenRouterRerank:
             return final_results
         except requests.exceptions.RequestException as e:
             logger.error(f"Reranking failed: {e}. Returning unranked fallback.")
+            return [
+                {
+                    "index": i,
+                    "score": 0.0,
+                    "source": doc.get("text") if isinstance(doc, dict) else str(doc),
+                }
+                for i, doc in enumerate(documents[:top_n])
+            ]

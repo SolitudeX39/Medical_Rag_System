@@ -1,0 +1,52 @@
+term,thai,kind,definition,related_term,relation
+Anemia,ภาวะโลหิตจาง,disease,ภาวะที่ฮีโมโกลบินหรือเม็ดเลือดแดงต่ำจนเนื้อเยื่อได้ออกซิเจนไม่พอ ผู้ป่วยอาจเหนื่อยง่าย หน้ามืด และซีด,Hypoxia,may_cause
+Leukocytosis,เม็ดเลือดขาวสูง,sign,จำนวนเม็ดเลือดขาวในเลือดสูงกว่าปกติ มักพบเมื่อมีการติดเชื้อหรือการอักเสบ,Infection,suggests
+Thrombocytopenia,เกล็ดเลือดต่ำ,disease,ภาวะที่เกล็ดเลือดต่ำกว่าปกติ เสี่ยงเลือดออกง่ายและจ้ำเลือด,Anemia,often_seen_with
+Hyperglycemia,น้ำตาลในเลือดสูง,sign,ระดับกลูโคสในเลือดสูงกว่าปกติ พบในเบาหวานหรือภาวะเครียดจากการเจ็บป่วย,Diabetes mellitus,indicates
+Hypoglycemia,น้ำตาลในเลือดต่ำ,sign,ระดับกลูโคสในเลือดต่ำจนอาจมีเหงื่อออก มือสั่น สับสน หรือหมดสติ ต้องแก้ทันที,Hyperglycemia,opposite_of
+Diabetes mellitus,เบาหวาน,disease,โรคที่ร่างกายควบคุมน้ำตาลในเลือดไม่ได้จากอินซูลินไม่พอหรือดื้ออินซูลิน,Hyperglycemia,characterized_by
+Sepsis,ภาวะติดเชื้อในกระแสเลือด,disease,การตอบสนองต่อการติดเชื้อจนอวัยวะทำงานผิดปกติ เป็นภาวะฉุกเฉิน,Infection,complication_of
+Infection,การติดเชื้อ,concept,การที่มีเชื้อโรคเข้าสู่ร่างกายแล้วทำให้เกิดอาการหรือการอักเสบ,Sepsis,can_progress_to
+Inflammation,การอักเสบ,concept,ปฏิกิริยาของร่างกายต่อสิ่งกระตุ้น มีแดง ร้อน บวม ปวด และเสียหน้าที่,Infection,often_follows
+Edema,บวมน้ำ,sign,การคั่งของน้ำในเนื้อเยื่อ ทำให้บวม กดบุ๋มได้บ่อยที่ขาหรือรอบตา,Heart failure,common_in
+Dehydration,ขาดน้ำ,concept,ร่างกายเสียน้ำและเกลือแร่จนปริมาตรเลือดลด อาจมีปากแห้ง ปัสสาวะน้อย และความดันต่ำ,Hypotension,can_cause
+Hypertension,ความดันโลหิตสูง,disease,ความดันโลหิตสูงเรื้อรัง เพิ่มความเสี่ยงโรคหัวใจ ไต และหลอดเลือดสมอง,Stroke,increases_risk
+Hypotension,ความดันโลหิตต่ำ,sign,ความดันโลหิตต่ำจนอวัยวะได้ออกซิเจนไม่พอ อาจหน้ามืดหรือช็อก,Dehydration,may_result_from
+Stroke,โรคหลอดเลือดสมอง,disease,สมองขาดเลือดหรือมีเลือดออกในสมองอย่างกะทันหัน ทำให้พูดไม่ชัด อ่อนแรงซีกหนึ่ง หรือปากเบี้ยว,Hypertension,risk_factor
+Ischemia,ภาวะขาดเลือด,concept,เนื้อเยื่อได้ออกซิเจนไม่พอจากเลือดไปเลี้ยงลดลง หากนานจะเกิดเนื้อตาย,Myocardial infarction,mechanism_of
+Myocardial infarction,กล้ามเนื้อหัวใจตาย,disease,กล้ามเนื้อหัวใจตายจากการอุดตันของหลอดเลือดหัวใจ มีแน่นอก เหงื่อออก และหายใจลำบาก,Ischemia,caused_by
+Heart failure,ภาวะหัวใจล้มเหลว,disease,หัวใจสูบฉีดเลือดได้ไม่พอ อาจมีหายใจลำบาก นอนราบไม่ได้ และขาบวม,Edema,presents_with
+Arrhythmia,หัวใจเต้นผิดจังหวะ,disease,จังหวะการเต้นของหัวใจผิดปกติ เร็ว ช้า หรือไม่สม่ำเสมอ,Tachycardia,includes
+Tachycardia,หัวใจเต้นเร็ว,sign,อัตราการเต้นของหัวใจเร็วกว่าปกติในผู้ใหญ่ มักเกิน 100 ครั้งต่อนาที,Bradycardia,opposite_of
+Bradycardia,หัวใจเต้นช้า,sign,อัตราการเต้นของหัวใจช้ากว่าปกติในผู้ใหญ่ มักต่ำกว่า 60 ครั้งต่อนาที,Tachycardia,opposite_of
+Dyspnea,หายใจลำบาก,symptom,ความรู้สึกหายใจไม่ทันหรือเหนื่อยที่ใช้แรงมากขึ้น พบในโรคปอดและหัวใจ,Hypoxia,associated_with
+Cyanosis,เขียวคล้ำ,sign,ผิวหรือริมฝีปากเขียวจากออกซิเจนในเลือดต่ำ ต้องประเมินทางเดินหายใจทันที,Hypoxia,sign_of
+Hypoxia,ออกซิเจนในเนื้อเยื่อต่ำ,concept,เนื้อเยื่อได้รับออกซิเจนไม่พอ อาจจากปอด หัวใจ หรือเลือดจาง,Cyanosis,may_show
+Pneumonia,ปอดอักเสบ,disease,การติดเชื้อที่เนื้อปอด มีไข้ ไอ หายใจลำบาก และอาจมีออกซิเจนต่ำ,Dyspnea,presents_with
+Asthma,หอบหืด,disease,ทางเดินหายใจตีบและอักเสบเป็นพักๆ มีวีด ไอ และหายใจลำบาก,Dyspnea,presents_with
+COPD,โรคปอดอุดกั้นเรื้อรัง,disease,โรคปอดเรื้อรังที่ทางเดินหายใจอุดกั้น โดยเฉพาะในผู้ที่สูบบุหรี่,Dyspnea,presents_with
+Hematemesis,อาเจียนเป็นเลือด,symptom,อาเจียนออกมาเป็นเลือดสดหรือสีเปลือกกาแฟ บ่งชี้เลือดออกในทางเดินอาหารส่วนบน,Melena,related_to
+Melena,อุจจาระดำ,sign,อุจจาระดำเหนียวเหมือนยางมะตอย จากเลือดที่ผ่านทางเดินอาหาร,Hematemesis,related_to
+Jaundice,ดีซ่าน,sign,ตาขาวหรือผิวเหลืองจากบิลิรูบินสูง พบในโรคตับ ทางเดินน้ำดี หรือเม็ดเลือดแตก,Hepatitis,common_in
+Hepatitis,ตับอักเสบ,disease,ตับอักเสบจากเชื้อ ยา หรือภูมิคุ้มกัน อาจมีดีซ่าน อ่อนเพลีย และเอนไซม์ตับสูง,Jaundice,presents_with
+Cirrhosis,ตับแข็ง,disease,ตับเสียโครงสร้างถาวรจากเรื้อรัง เสี่ยงน้ำในท้อง เลือดออก และสมองล้มเหลว,Hepatitis,can_follow
+Appendicitis,ไส้ติ่งอักเสบ,disease,ไส้ติ่งอักเสบเฉียบพลัน ปวดท้องน้อยขวา คลื่นไส้ และไข้ อาจต้องผ่าตัด,Appendectomy,treated_by
+Appendectomy,ผ่าตัดไส้ติ่ง,procedure,การผ่าตัดนำไส้ติ่งออก ใช้รักษาไส้ติ่งอักเสบ,Appendicitis,treats
+Endoscopy,ส่องกล้องทางเดินอาหาร,procedure,การส่องกล้องดูหลอดอาหาร กระเพาะ และลำไส้เล็กส่วนต้น เพื่อวินิจฉัยหรือห้ามเลือด,Hematemesis,used_for
+Seizure,ชัก,symptom,การทำงานของสมองผิดจังหวะจนมีการกระตุกหรือเปลี่ยนระดับความรู้สึกตัว,Epilepsy,occurs_in
+Epilepsy,โรคลมชัก,disease,โรคทางสมองที่มีการชักซ้ำโดยไม่มีสาเหตุกระตุ้นชั่วคราว,Seizure,characterized_by
+Meningitis,เยื่อหุ้มสมองอักเสบ,disease,เยื่อหุ้มสมองอักเสบ มักมีไข้ ปวดศีรษะ คอแข็ง และอาจซึม,Infection,type_of
+Fracture,กระดูกหัก,disease,กระดูกเสียความต่อเนื่องจากแรงกระแทก มีปวด บวม และผิดรูป,Edema,presents_with
+NPO,งดน้ำงดอาหาร,abbreviation,คำสั่งให้งดกินและดื่มชั่วคราว ก่อนผ่าตัดหรือเมื่อเสี่ยงสำลัก,Endoscopy,required_before
+PRN,ให้เมื่อมีอาการ,abbreviation,ให้ยาหรือการพยาบาลเมื่อผู้ป่วยมีอาการ ไม่ได้ให้ตามเวลาตายตัว,Pain,given_for
+BID,วันละสองครั้ง,abbreviation,ความถี่ให้ยาสองครั้งต่อวัน มักเช้าและเย็น,TID,related_to
+TID,วันละสามครั้ง,abbreviation,ความถี่ให้ยาสามครั้งต่อวัน,BID,related_to
+IV,ฉีดเข้าหลอดเลือดดำ,abbreviation,เส้นทางให้สารน้ำหรือยาเข้าหลอดเลือดดำโดยตรง,IM,alternative_to
+IM,ฉีดเข้ากล้ามเนื้อ,abbreviation,เส้นทางฉีดยาเข้ากล้ามเนื้อ เช่น สะโพกหรือต้นแขน,IV,alternative_to
+CBC,ความสมบูรณ์ของเม็ดเลือด,abbreviation,การตรวจนับเม็ดเลือดแดง เม็ดเลือดขาว ฮีโมโกลบิน และเกล็ดเลือด,Anemia,used_to_detect
+BMI,ดัชนีมวลกาย,abbreviation,ค่าน้ำหนักเทียบส่วนสูง ใช้ประเมินน้ำหนักเกินหรือต่ำกว่าเกณฑ์,Diabetes mellitus,risk_marker
+Pain,อาการปวด,symptom,ความรู้สึกไม่สบายที่ผู้ป่วยบอกได้ ต้องถามตำแหน่ง ลักษณะ ระยะเวลา และสิ่งที่กระตุ้น,PRN,may_need
+Fever,ไข้,sign,อุณหภูมิร่างกายสูงกว่าปกติ เป็นสัญญาณการอักเสบหรือติดเชื้อที่พบบ่อย,Infection,suggests
+Syncope,เป็นลม,symptom,หมดสติชั่วคราวจากการไหลเวียนสมองลดลง ต้องแยกจากชักและปัญหาหัวใจ,Hypotension,may_cause
+Polyuria,ปัสสาวะมาก,symptom,ปัสสาวะปริมาณมาก พบในเบาหวานที่ไม่ควบคุมหรือได้รับยาขับปัสสาวะ,Diabetes mellitus,common_in
+Polydipsia,กระหายน้ำมาก,symptom,กระหายน้ำผิดปกติ มักคู่กับปัสสาวะมากในเบาหวาน,Diabetes mellitus,common_in

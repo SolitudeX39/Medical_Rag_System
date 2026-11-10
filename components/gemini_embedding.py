@@ -3,15 +3,21 @@ from google import genai
 from google.genai import types
 import os
 
-from dotenv import load_dotenv    
-load_dotenv()
+try:
+    from components.env import load_project_env
+    load_project_env()
+except ImportError:
+    from dotenv import load_dotenv
+    load_dotenv()
 
 
 class GeminiEmbeddings(Embeddings):
 
-    def __init__(self, api_key = None, model="gemini-embedding-2"):
+    def __init__(self, api_key=None, model="gemini-embedding-2"):
         if api_key is None:
-            api_key = os.getenv("GOOGLE_API_KEY")    
+            api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError("ต้องใส่ GOOGLE_API_KEY ในไฟล์ .env")
         self.client = genai.Client(api_key=api_key)
         self.model = model
 
@@ -43,4 +49,3 @@ class GeminiEmbeddings(Embeddings):
             contents=[text]
         )
         return resp.embeddings[0].values
-
