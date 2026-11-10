@@ -10,7 +10,13 @@ from components.chat_prompt import CHAT_SYSTEM_PROMPT
 from components.chunking_process import load_and_split_file, load_and_split_pages
 from components.env import load_project_env
 from components.gemini_embedding import GeminiEmbeddings
-from components.graph import format_graph_context, graph_overview, related_terms, replace_graph
+from components.graph import (
+    facts_to_graph_dict,
+    format_graph_context,
+    graph_overview,
+    related_terms,
+    replace_graph,
+)
 from components.medical_graph import MEDICAL_GRAPH_NODES, MEDICAL_GRAPH_RELATIONSHIPS
 from components.mock_pdf_data import MOCK_PDF_NAME, MOCK_PDF_PAGES
 from components.openrouter_rerank import OpenRouterRerank
@@ -412,6 +418,43 @@ def context_from_rows(rows: list[tuple]) -> str:
     return "\n\n".join(blocks)
 
 
+def get_chat_llm(temperature: float = 0.2):
+    load_project_env()
+    openai_key = os.getenv("OPENAI_API_KEY")
+    google_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    openrouter_key = os.getenv("OPENROUTER_API_KEY")
+
+    if openai_key:
+        return ChatOpenAI(
+            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            api_key=openai_key,
+            temperature=temperature,
+        )
+    elif google_key:
+        try:
+            from langchain_google_genai import ChatGoogleGenerativeAI
+            model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+            return ChatGoogleGenerativeAI(
+                model=model_name,
+                api_key=google_key,
+                temperature=temperature,
+            )
+        except Exception:
+            pass
+    elif openrouter_key:
+        return ChatOpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=openrouter_key,
+            model=os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct"),
+            temperature=temperature,
+        )
+    return ChatOpenAI(
+        model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        api_key=openai_key or "sk-dummy",
+        temperature=temperature,
+    )
+
+
 def query_database(
     query: str,
     history: list | None = None,
@@ -441,10 +484,7 @@ def query_database(
     context_text = context_from_rows(sql_result)
     extra_block = f"\nข้อมูลคนไข้ในระบบ:\n{extra_context}\n" if extra_context else ""
 
-    llm = ChatOpenAI(
-        model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-        api_key=os.getenv("OPENAI_API_KEY"),
-    )
+    llm = get_chat_llm(temperature=0.2)
 
     user_content = f"""Context จากเอกสารทั้งหมดที่เคยอัปโหลด แยกตามไฟล์ PDF และ CSV:
 {context_text or "ไม่มีเอกสารที่เกี่ยวข้อง"}
@@ -481,5 +521,6 @@ def query_database(
     return {
         "answer": response.content,
         "sources": sources,
-        "graph": graph_facts,
+        "facts": graph_facts,
+        "graph": facts_to_graph_dict(graph_facts),
     }

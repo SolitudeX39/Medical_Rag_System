@@ -19,9 +19,9 @@ def get_driver():
         return None
     if _driver is None:
         uri = os.getenv("NEO4J_URI", "bolt://127.0.0.1:7687")
-        user = os.getenv("NEO4J_USER", "neo4j")
+        user = os.getenv("NEO4J_USERNAME") or os.getenv("NEO4J_USER", "neo4j")
         password = os.getenv("NEO4J_PASSWORD", "newpassword")
-        _driver = GraphDatabase.driver(uri, auth=(user, password), connection_timeout=3)
+        _driver = GraphDatabase.driver(uri, auth=(user, password), connection_timeout=5)
     return _driver
 
 
@@ -39,7 +39,7 @@ def replace_graph(nodes: list[dict], relationships: list[dict], document_name: s
 
     try:
         with driver.session() as session:
-            session.run("MATCH (n) DETACH DELETE n")
+            session.run("MATCH (n:Term) DETACH DELETE n")
             session.run(
                 """
                 MERGE (d:Document {name: $name})
@@ -147,12 +147,43 @@ def merge_graph(nodes: list[dict], relationships: list[dict], document_name: str
         return {"nodes": 0, "relationships": 0, "skipped": True}
 
 
-def related_terms(query: str, limit: int = 20) -> list[dict]:
+def related_terms(query: str, limit: int = 25) -> list[dict]:
     driver = get_driver()
     if driver is None or not query.strip():
         return []
 
-    cypher = """
+    q = query.strip()
+    facts = []
+
+    # 1. Search RDF Knowledge Graph (Diseases, Symptoms, Treatments)
+    rdf_cypher = """
+    MATCH (d:med__Disease)
+    WHERE toLower(coalesce(d.rdfs__label, '')) CONTAINS toLower($q)
+    OPTIONAL MATCH (d)-[r]->(target)
+    RETURN coalesce(d.rdfs__label, d.uri) AS name,
+           'disease' AS kind,
+           coalesce(d.uri, '') AS definition,
+           type(r) AS raw_type,
+           coalesce(target.rdfs__label, target.uri) AS other,
+           labels(target) AS other_labels
+    LIMIT $limit
+    """
+
+    rdf_reverse_cypher = """
+    MATCH (target)
+    WHERE (target:med__Symptom OR target:med__Treatment)
+      AND toLower(coalesce(target.rdfs__label, '')) CONTAINS toLower($q)
+    OPTIONAL MATCH (d:med__Disease)-[r]->(target)
+    RETURN coalesce(target.rdfs__label, target.uri) AS name,
+           case when 'med__Symptom' IN labels(target) then 'symptom' else 'treatment' end AS kind,
+           coalesce(target.uri, '') AS definition,
+           type(r) AS raw_type,
+           coalesce(d.rdfs__label, d.uri) AS other,
+           ['med__Disease'] AS other_labels
+    LIMIT $limit
+    """
+
+    term_cypher = """
     MATCH (t:Term)
     WHERE toLower(t.name) CONTAINS toLower($q)
        OR toLower(coalesce(t.thai, '')) CONTAINS toLower($q)
@@ -171,11 +202,44 @@ def related_terms(query: str, limit: int = 20) -> list[dict]:
            n.definition AS other_definition
     LIMIT $limit
     """
+
     try:
         with driver.session() as session:
-            rows = session.run(cypher, q=query.strip(), limit=limit)
-            facts = []
-            for row in rows:
+            # Query disease matches
+            for row in session.run(rdf_cypher, q=q, limit=limit):
+                rel_label = "has_symptom" if "symptom" in (row["raw_type"] or "").lower() else "has_treatment"
+                other_kind = "symptom" if "symptom" in (row["raw_type"] or "").lower() else "treatment"
+                facts.append({
+                    "name": row["name"],
+                    "thai": "",
+                    "kind": "disease",
+                    "definition": row["definition"],
+                    "relation": f"{row['name']} -[{rel_label}]-> {row['other']}" if row["other"] else "",
+                    "related_name": row["other"],
+                    "related_thai": "",
+                    "related_kind": other_kind,
+                    "related_definition": "",
+                    "relation_detail": f"ความสัมพันธ์ทางการแพทย์: {rel_label}",
+                })
+
+            # Query symptom/treatment reverse matches
+            for row in session.run(rdf_reverse_cypher, q=q, limit=limit):
+                rel_label = "has_symptom" if row["kind"] == "symptom" else "has_treatment"
+                facts.append({
+                    "name": row["name"],
+                    "thai": "",
+                    "kind": row["kind"],
+                    "definition": row["definition"],
+                    "relation": f"{row['other']} -[{rel_label}]-> {row['name']}" if row["other"] else "",
+                    "related_name": row["other"],
+                    "related_thai": "",
+                    "related_kind": "disease",
+                    "related_definition": "",
+                    "relation_detail": f"ความสัมพันธ์ทางการแพทย์: {rel_label}",
+                })
+
+            # Query traditional Term nodes
+            for row in session.run(term_cypher, q=q, limit=limit):
                 item = {
                     "name": row["name"],
                     "thai": row["thai"],
@@ -193,57 +257,151 @@ def related_terms(query: str, limit: int = 20) -> list[dict]:
                     item["related_definition"] = row["other_definition"]
                     item["relation_detail"] = row["rel_detail"]
                 facts.append(item)
-            return facts
-    except Exception:
+    except Exception as exc:
+        print(f"Warning: related_terms query failed: {exc}")
         close_driver()
-        return []
+
+    return facts
 
 
-def graph_overview(limit: int = 80) -> dict:
+def graph_overview(limit: int = 100) -> dict:
     driver = get_driver()
     if driver is None:
         return {"nodes": [], "links": [], "skipped": True}
 
+    nodes_dict = {}
+    links = []
+
     try:
         with driver.session() as session:
-            nodes = [
-                {
-                    "name": row["name"],
-                    "thai": row["thai"],
-                    "kind": row["kind"],
-                    "definition": row["definition"],
-                }
-                for row in session.run(
-                    """
-                    MATCH (t:Term)
-                    RETURN t.name AS name, t.thai AS thai, t.kind AS kind, t.definition AS definition
-                    ORDER BY t.name
-                    LIMIT $limit
-                    """,
-                    limit=limit,
-                )
-            ]
-            links = [
-                {
+            # 1. Fetch RDF triples (med__Disease -> med__has_symptom / med__has_treatment)
+            rdf_query = """
+            MATCH (d:med__Disease)-[r]->(target)
+            RETURN coalesce(d.rdfs__label, d.uri) AS disease_name,
+                   d.uri AS disease_uri,
+                   type(r) AS rel_type,
+                   coalesce(target.rdfs__label, target.uri) AS target_name,
+                   target.uri AS target_uri,
+                   labels(target) AS target_labels
+            LIMIT $limit
+            """
+            for row in session.run(rdf_query, limit=limit):
+                d_name = row["disease_name"]
+                t_name = row["target_name"]
+                rel = row["rel_type"] or ""
+                is_symp = "symptom" in rel.lower() or "med__Symptom" in (row["target_labels"] or [])
+                t_kind = "symptom" if is_symp else "treatment"
+                rel_label = "อาการ" if is_symp else "การรักษา"
+
+                if d_name not in nodes_dict:
+                    nodes_dict[d_name] = {
+                        "name": d_name,
+                        "thai": "",
+                        "kind": "disease",
+                        "definition": row["disease_uri"] or "โรค",
+                    }
+                if t_name not in nodes_dict:
+                    nodes_dict[t_name] = {
+                        "name": t_name,
+                        "thai": "",
+                        "kind": t_kind,
+                        "definition": row["target_uri"] or ("อาการ" if is_symp else "ยา / การรักษา"),
+                    }
+
+                links.append({
+                    "from": d_name,
+                    "to": t_name,
+                    "type": rel,
+                    "label": rel_label,
+                    "detail": f"{d_name} -> {rel_label} -> {t_name}",
+                })
+
+            # 2. Fetch Term nodes if available
+            term_nodes = session.run(
+                """
+                MATCH (t:Term)
+                RETURN t.name AS name, t.thai AS thai, t.kind AS kind, t.definition AS definition
+                ORDER BY t.name
+                LIMIT $limit
+                """,
+                limit=limit,
+            )
+            for row in term_nodes:
+                name = row["name"]
+                if name not in nodes_dict:
+                    nodes_dict[name] = {
+                        "name": name,
+                        "thai": row["thai"] or "",
+                        "kind": row["kind"] or "term",
+                        "definition": row["definition"] or "",
+                    }
+
+            term_links = session.run(
+                """
+                MATCH (a:Term)-[r:RELATED]->(b:Term)
+                RETURN a.name AS from_name, b.name AS to_name, r.type AS rel_type, r.label AS label, r.detail AS detail
+                LIMIT $limit
+                """,
+                limit=limit,
+            )
+            for row in term_links:
+                links.append({
                     "from": row["from_name"],
                     "to": row["to_name"],
-                    "type": row["rel_type"],
-                    "label": row["label"],
-                    "detail": row["detail"],
-                }
-                for row in session.run(
-                    """
-                    MATCH (a:Term)-[r:RELATED]->(b:Term)
-                    RETURN a.name AS from_name, b.name AS to_name, r.type AS rel_type, r.label AS label, r.detail AS detail
-                    LIMIT $limit
-                    """,
-                    limit=limit,
-                )
-            ]
-        return {"nodes": nodes, "links": links, "skipped": False}
-    except Exception:
+                    "type": row["rel_type"] or "RELATED",
+                    "label": row["label"] or "เกี่ยวข้อง",
+                    "detail": row["detail"] or "",
+                })
+
+        return {"nodes": list(nodes_dict.values()), "links": links, "skipped": False}
+    except Exception as exc:
+        print(f"Warning: graph_overview query failed: {exc}")
         close_driver()
         return {"nodes": [], "links": [], "skipped": True}
+
+
+def facts_to_graph_dict(facts: list[dict]) -> dict:
+    """Converts related_terms() facts into a GraphView-compatible dict."""
+    if not facts:
+        return {"nodes": [], "links": [], "skipped": False}
+    nodes_map = {}
+    links = []
+
+    for fact in facts:
+        name = fact.get("name")
+        if not name:
+            continue
+        if name not in nodes_map:
+            nodes_map[name] = {
+                "name": name,
+                "thai": fact.get("thai", ""),
+                "kind": fact.get("kind", "concept"),
+                "definition": fact.get("definition", ""),
+            }
+
+        other = fact.get("related_name")
+        if other:
+            if other not in nodes_map:
+                nodes_map[other] = {
+                    "name": other,
+                    "thai": fact.get("related_thai", ""),
+                    "kind": fact.get("related_kind", "concept"),
+                    "definition": fact.get("related_definition", ""),
+                }
+            rel_label = "เกี่ยวข้อง"
+            if fact.get("relation"):
+                if "has_symptom" in fact["relation"]:
+                    rel_label = "อาการ"
+                elif "has_treatment" in fact["relation"]:
+                    rel_label = "การรักษา"
+            links.append({
+                "from": name if (fact.get("relation") or "").startswith(name) else other,
+                "to": other if (fact.get("relation") or "").startswith(name) else name,
+                "label": rel_label,
+                "detail": fact.get("relation_detail", ""),
+            })
+
+    return {"nodes": list(nodes_map.values()), "links": links, "skipped": False}
 
 
 def format_graph_context(facts: list[dict]) -> str:

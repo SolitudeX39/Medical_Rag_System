@@ -3,10 +3,10 @@ import os
 import re
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
 
-from components.database import query_database
+from components.database import get_chat_llm, query_database
 from components.env import load_project_env
+from components.graph import facts_to_graph_dict, related_terms
 
 load_project_env()
 
@@ -442,11 +442,7 @@ def triage_chat(message: str, history: list | None = None) -> dict:
         transcript.append(f"{role}: {item.get('content', '')}")
     transcript.append(f"ผู้ป่วย: {message}")
 
-    llm = ChatOpenAI(
-        model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-        api_key=os.getenv("OPENAI_API_KEY"),
-        temperature=0.2,
-    )
+    llm = get_chat_llm(temperature=0.2)
     try:
         response = llm.invoke(
             [
@@ -462,11 +458,23 @@ def triage_chat(message: str, history: list | None = None) -> dict:
             )
             matched = _rule_department(blob)
             if matched and matched[1] == "emergency" and not result["ready"]:
-                return _normalize_triage(fallback)
-            return result
+                final_res = _normalize_triage(fallback)
+            else:
+                final_res = result
+            # Attach related medical graph visualization
+            try:
+                final_res["graph"] = facts_to_graph_dict(related_terms(blob))
+            except Exception:
+                final_res["graph"] = {"nodes": [], "links": []}
+            return final_res
     except Exception:
         pass
-    return _normalize_triage(fallback)
+    fallback_res = _normalize_triage(fallback)
+    try:
+        fallback_res["graph"] = facts_to_graph_dict(related_terms(message))
+    except Exception:
+        fallback_res["graph"] = {"nodes": [], "links": []}
+    return fallback_res
 
 
 def patient_chat(username: str, message: str, history: list | None = None) -> dict:

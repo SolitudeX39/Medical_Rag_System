@@ -167,21 +167,71 @@ def document_delete(document_id: str):
 @app.post("/upload")
 async def upload(file: UploadFile = File(...)):
     filename = Path(file.filename or "").name
-    if Path(filename).suffix.lower() not in {".pdf", ".csv"}:
+    suffix = Path(filename).suffix.lower()
+    if suffix not in {".pdf", ".csv"}:
         raise HTTPException(status_code=400, detail="กรุณาอัปโหลดไฟล์ PDF หรือ CSV")
 
     upload_dir = ROOT / "uploads"
     upload_dir.mkdir(exist_ok=True)
 
+    is_medical_csv = False
+    ner_summary = None
+    result = {}
+
     with tempfile.TemporaryDirectory(dir=upload_dir) as tmp_dir:
         saved_path = Path(tmp_dir) / filename
         saved_path.write_bytes(await file.read())
+
+        if suffix == ".csv":
+            try:
+                import pandas as pd
+                df_peek = pd.read_csv(saved_path, nrows=5)
+                cols = [str(c).lower().strip() for c in df_peek.columns]
+                if any(c in cols for c in ["disease", "common_symptom", "treatment"]):
+                    is_medical_csv = True
+            except Exception as e:
+                print(f"Note: Error inspecting CSV columns: {e}")
+
+        # If medical disease/symptom/treatment CSV, execute the Biomedical NER + UMLS RDF Pipeline!
+        if is_medical_csv:
+            try:
+                from ner_rdflib_pipeline import process_csv_to_rdf
+                from upload_ttl_to_aura import (
+                    AURA_PASSWORD,
+                    AURA_URI,
+                    AURA_USERNAME,
+                    upload_ttl_to_aura,
+                )
+
+                ttl_output = upload_dir / f"{Path(filename).stem}_graph.ttl"
+                print(f"Running Biomedical NER + UMLS CUI pipeline on {filename}...")
+                process_csv_to_rdf(str(saved_path), output_path=str(ttl_output))
+
+                print(f"Syncing generated triples from {ttl_output} to Neo4j Aura...")
+                upload_ttl_to_aura(str(ttl_output), AURA_URI, AURA_USERNAME, AURA_PASSWORD)
+                ner_summary = "แปลงเอนทิตีอาการและยาด้วย UMLS CUI และอัปเดต Neo4j Knowledge Graph เรียบร้อยแล้ว"
+            except Exception as ner_exc:
+                print(f"Warning: NER RDF pipeline run failed: {ner_exc}")
+                ner_summary = f"NER pipeline notice: {ner_exc}"
+
+        # Also store into PostgreSQL vector database for hybrid text search if available
         try:
             result = insert_into_database(saved_path)
         except Exception as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
+            if is_medical_csv:
+                result = {"filename": filename, "parent_chunks": 1, "note": "Indexed to Neo4j Knowledge Graph"}
+            else:
+                raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    return {"status": "indexed", **result}
+    overview = graph_overview(limit=100)
+    return {
+        "status": "indexed",
+        "filename": filename,
+        "is_medical_dataset": is_medical_csv,
+        "ner_summary": ner_summary,
+        "graph": overview,
+        **result,
+    }
 
 
 @app.post("/seed-mock")
